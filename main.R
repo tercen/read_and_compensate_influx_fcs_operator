@@ -6,7 +6,7 @@ library(fuzzyjoin)
 
 fcs_sort_to_data = function(filename) {
   # Read FCS file using flowCore::read.FCS
-  flowfile <- read.FCS(filename, alter.names = TRUE)
+  flowfile <- read.FCS(filename, alter.names = TRUE, transformation=FALSE)
   flowfile <- compensate(flowfile, spillover(flowfile)$SPILL)
   
   if (keyword(flowfile, "INDEXSORTPOSITIONS") %in% keyword(flowfile) == TRUE) {

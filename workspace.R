@@ -11,7 +11,7 @@ options("tercen.stepId" =     "38f36a72-6e22-475e-8f45-884edfec40c6")
 
 fcs_sort_to_data = function(filename) {
   # Read FCS file using flowCore::read.FCS
-  flowfile <- read.FCS(filename, alter.names = TRUE)
+  flowfile <- read.FCS(filename, alter.names = TRUE, transformation=FALSE)
   flowfile <- compensate(flowfile, spillover(flowfile)$SPILL)
   
   if (keyword(flowfile, "INDEXSORTPOSITIONS") %in% keyword(flowfile) == TRUE) {

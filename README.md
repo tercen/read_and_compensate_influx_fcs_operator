@@ -1,50 +1,27 @@
-# Template R operator
-
-The `Template R operator` is a template repository for the creation of R operators in Tercen. An overview of steps for developing an operator are:
-
-1. create a github repo
-2. install tercen_studio
-3. login to tercen_studio
-4. git clone the newly created repo
-5. start developing in R in tercen_studio
-6. add R packages to the repo
-7. push to the github repo
-8. go to tercen and install the operator
-
-More information can be found in [Tercen app builder's guide](https://tercen.github.io/appbuilders-guide/).
-
-Below is the operator README standard structure:
+# Read and compensate BD Influx FCS operator
 
 ##### Description
 
-The `Template R operator` is a template repository for the creation of R operators in Tercen.
+`read_and_compensate_fcs` operator transforms and compensates FCS files from the
+BD Influx to Tercen datasets.
 
 ##### Usage
 
 Input projection|.
 ---|---
-`x-axis`        | type, description 
-`y-axis`        | type, description 
-`row`           | type, description 
-`column`        | type, description 
-`colors`        | type, description 
-`labels`        | type, description 
-
-Input parameters|.
----|---
-`input_var`        | parameter description
+`documentId`        | is the documentId (document can be a single FCS file, or a zipped set of FCS files)
 
 Output relations|.
 ---|---
-`output_var`        | output relation
-`Operator view`        | view of the Shiny application
+`filename`          | character, the name of the FCS file
+`channels`          | numeric, one variable per channel in the FCS file
 
 ##### Details
 
-Details on the computation.
+The operator transforms FCS files from the BD Influx into Tercen dataset and 
+directly transforms the channels according to the compensation matrix. If the 
+document is a ZIP filecontaining a set of FCS files, the operator extracts the 
+FCS files and tranforms them into Tercen datasets.
 
-##### See Also
-
-[template_shiny_operator](https://github.com/tercen/template_shiny_operator)
-, [template_docker_operator](https://github.com/tercen/template_docker_operator)
-
+The Flow Cytometry Standard is a data file standard for the reading and writing 
+of data from flow cytometry experiments.

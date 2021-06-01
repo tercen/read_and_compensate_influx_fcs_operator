@@ -9,8 +9,7 @@ BD Influx to Tercen datasets.
 
 Input projection|.
 ---|---
-`documentId`        | is the documentId (document can be a single FCS file, or a zipped set of FCS files
-                      and a compensation matrix)
+`documentId`        | is the documentId (document can be a single FCS file, or a zipped set of FCS files and a compensation matrix)
 
 Output relations|.
 ---|---

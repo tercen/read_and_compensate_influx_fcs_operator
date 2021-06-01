@@ -3,40 +3,64 @@ library(tercen)
 library(dplyr)
 library(flowCore)
 library(fuzzyjoin)
+library(stringr)
 
-fcs_sort_to_data = function(filename) {
-  # Read FCS file using flowCore::read.FCS
-  flowfile <- read.FCS(filename, alter.names = TRUE, transformation=FALSE)
-  flowfile <- compensate(flowfile, spillover(flowfile)$SPILL)
+sort_to_data = function(filename, comp_df=NULL) {
+  INCLUDE <- c("Well", "FSC", "SSC", "*", "TIME", "Tray", "Well")
   
-  if (keyword(flowfile, "INDEXSORTPOSITIONS") %in% keyword(flowfile) == TRUE) {
-    #Creates a dataframe of the sorted events
-    ofintrest <- exprs(flowfile)
-    dataframe <- as.data.frame(ofintrest)
-    indexed <- dataframe[dataframe$'Sort.Result.Bits' > 0, ]
+  # Read FCS file using flowCore::read.FCS
+  flowfile <- read.FCS(filename,
+                       transformation=FALSE) 
+  
+  if (keyword(flowfile, "INDEXSORTPOSITIONS") %in% keyword(flowfile) == TRUE){
+    
+    #Creates a DataFrame of the sorted events
+    flowdata <- as.data.frame(exprs(flowfile))
+    indexed_flowdata <- flowdata[flowdata$'Sort Result Bits' >0,]
+    
+    # Filter out correct rows
+    indexed_flowdata = indexed_flowdata %>% 
+      select(contains(INCLUDE)) %>% 
+      rename_all(~str_replace_all(., "\\*",""))
+    
+    # Re-create flowFrame object
+    indexed_fcs = flowFrame(exprs = as.matrix(indexed_flowdata))
+    
+    # Perform compensation
+    if (is.null(comp_df)) {
+      indexed_fcs = compensate(indexed_fcs, spillover(flowfile)$SPILL)
+    } else {
+      colnames(comp_df) = colnames(spillover(flowfile)$SPILL)
+      indexed_fcs = compensate(indexed_fcs, comp_df)
+    }
+    
+    # Final DF
+    indexed = as.data.frame(exprs(indexed_fcs))
     
     #Creates a dataframe of the well positions
-    wellorder <-
-      strsplit(keyword(flowfile, "INDEXSORTPOSITIONS")[[1]], ",")
+    wellorder<-strsplit(keyword(flowfile,"INDEXSORTPOSITIONS")[[1]], ",")
     wellID <- wellorder[[1]][seq(1, length(wellorder[[1]]), 3)]
-    x <- wellorder[[1]][seq(2, length(wellorder[[1]]), 3)]
-    y <- wellorder[[1]][seq(3, length(wellorder[[1]]), 3)]
+    x<-wellorder[[1]][seq(2, length(wellorder[[1]]), 3)]
+    y<-wellorder[[1]][seq(3, length(wellorder[[1]]), 3)]
     
     
-    well_df <- data.frame(wellID, x, y)
+    well_df<-data.frame(wellID,x,y)
     well_df[, 2] <- as.numeric(as.character(well_df[, 2]))
     well_df[, 3] <- as.numeric(as.character(well_df[, 3]))
-    colnames(well_df) <- c("Well", "Tray.X", "Tray.Y")
+    colnames(well_df) <- c("Well","Tray X", "Tray Y")
     
-    #Sortware does not store the index positions correctly so we use thr dplyr and fuzzylogic packages to correct for this
-    indexdata <-
-      difference_inner_join(well_df,
-                            indexed,
-                            by = c("Tray.X", "Tray.Y"),
-                            max_dist = 3)
-    colnames(indexdata) <- c('Well', 'Tray X (kw)', 'Tray Y (kw)',
-                             colnames(read.FCS(filename))) #Reading the fcs file again to get the column names slows the script down by 1/3.  To avoid this pre populate this with the col names.  Doing it this way makes the script more resistant to changes in the .fcs files
+    #Software does not store the index positions correctly so we use dplyr and fuzzylogic packages
+    indexdata<-difference_inner_join(well_df,indexed,
+                                     by=c("Tray X", "Tray Y"),
+                                     max_dist = 3)
     
+    colnames(indexdata)<-c('Well','Tray X (kw)','Tray Y (kw)',
+                           colnames(indexed)) 
+    #Reading the fcs file again to get the column names slows the script down by 1/3.  
+    #To avoid this pre populate this with the col names.  
+    #Doing it this way makes the script more resistant to changes in the .fcs files
+    
+    # Add document ID and CI
     indexdata %>%
       mutate_if(is.logical, as.character) %>%
       mutate_if(is.integer, as.double) %>%
@@ -49,11 +73,9 @@ fcs_sort_to_data = function(filename) {
   
 }
 
-
 ctx = tercenCtx()
 
-if (!any(ctx$cnames == "documentId"))
-  stop("Column factor documentId is required")
+if (!any(ctx$cnames == "documentId")) stop("Column factor documentId is required") 
 
 #1. extract files
 df <- ctx$cselect()
@@ -65,26 +87,36 @@ writeBin(ctx$client$fileService$download(docId), filename)
 on.exit(unlink(filename))
 
 # unzip if archive
-if (length(grep(".zip", doc$name)) > 0) {
+if(length(grep(".zip", doc$name)) > 0) {
   tmpdir <- tempfile()
   unzip(filename, exdir = tmpdir)
-  f.names <- list.files(tmpdir, full.names = TRUE)
+  f.names <- list.files(tmpdir, full.names = TRUE, 
+                        pattern="\\.fcs$", ignore.case=TRUE)
+  csv.names <- list.files(tmpdir, full.names = TRUE, 
+                          pattern="\\.csv$", ignore.case=TRUE)
+  
+  if (length(csv.names) == 0) { 
+    comp.df <- NULL
+  } else {
+    comp.df <- read.csv(csv.names[1], check.names=FALSE)[-1]
+  }
+  
 } else {
   f.names <- filename
+  comp.df <- NULL
 }
 
 # check FCS
-if (any(!isFCSfile(f.names)))
-  stop("Not all imported files are FCS files.")
+if(any(!isFCSfile(f.names))) stop("Not all imported files are FCS files.")
 
 assign("actual", 0, envir = .GlobalEnv)
 task = ctx$task
 
-
 #2. convert them to FCS files
 f.names %>%
-  lapply(function(filename) {
-    data = fcs_sort_to_data(filename)
+  lapply(function(filename){
+    # pass CSV compensation matrix or NULL
+    data = sort_to_data(filename, comp.df)
     if (!is.null(task)) {
       # task is null when run from RStudio
       actual = get("actual",  envir = .GlobalEnv) + 1

@@ -6,7 +6,7 @@
   "urls": ["https://github.com/tercen/read_and_compensate_influx_fcs_operator"],
   "properties": [
     {
-    "kind": "StringProperty",
+    "kind": "EnumeratedProperty",
     "name": "compensation",
     "defaultValue": "true",
     "values": [
@@ -17,7 +17,7 @@
     },
     
     {
-    "kind": "StringProperty",
+    "kind": "EnumeratedProperty",
     "name": "transformation",
     "defaultValue": "none",
     "values": [

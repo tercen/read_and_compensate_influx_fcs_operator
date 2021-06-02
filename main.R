@@ -2,10 +2,13 @@ library(BiocManager)
 library(tercen)
 library(dplyr)
 library(flowCore)
+library(flowWorkspace)
 library(fuzzyjoin)
 library(stringr)
 
-sort_to_data = function(filename, comp_df=NULL) {
+sort_to_data = function(filename, 
+                        comp=FALSE, comp_df=NULL,
+                        transform="none") {
   INCLUDE <- c("Well", "FSC", "SSC", "*", "TIME", "Tray", "Well")
   
   # Read FCS file using flowCore::read.FCS
@@ -23,15 +26,29 @@ sort_to_data = function(filename, comp_df=NULL) {
       select(contains(INCLUDE)) %>% 
       rename_all(~str_replace_all(., "\\*",""))
     
+    # Perform transformation if needed
+    if (transform == "biexponential") {
+      trans_f = flowWorkspace::flowjo_biexp()
+      trans_flow_data = indexed_flowdata %>% select(-contains(c('Well', 
+                                                                'TIME', 
+                                                                'Tray')))
+      
+      for (c in colnames(trans_flow_data)) {
+        indexed_flowdata[, c] = trans_f(indexed_flowdata[, c])
+      }
+    }
+    
     # Re-create flowFrame object
     indexed_fcs = flowFrame(exprs = as.matrix(indexed_flowdata))
     
     # Perform compensation
-    if (is.null(comp_df)) {
-      indexed_fcs = compensate(indexed_fcs, spillover(flowfile)$SPILL)
-    } else {
-      colnames(comp_df) = colnames(spillover(flowfile)$SPILL)
-      indexed_fcs = compensate(indexed_fcs, comp_df)
+    if (comp) {
+      if (is.null(comp_df)) {
+        indexed_fcs = compensate(indexed_fcs, spillover(flowfile)$SPILL)
+      } else {
+        colnames(comp_df) = colnames(spillover(flowfile)$SPILL)
+        indexed_fcs = compensate(indexed_fcs, comp_df)
+      }
     }
     
     # Final DF
@@ -77,6 +94,13 @@ ctx = tercenCtx()
 
 if (!any(ctx$cnames == "documentId")) stop("Column factor documentId is required") 
 
+# Setup operator properties
+compensation <- TRUE
+if(!is.null(ctx$op.value("compensation"))) type <- ctx$op.value("compensation")
+
+transformation <- "biexponential"
+if(!is.null(ctx$op.value("transformation"))) comparison <- ctx$op.value("transformation")
+
 #1. extract files
 df <- ctx$cselect()
 
@@ -116,7 +140,9 @@ task = ctx$task
 f.names %>%
   lapply(function(filename){
     # pass CSV compensation matrix or NULL
-    data = sort_to_data(filename, comp.df)
+    data = sort_to_data(filename, 
+                        comp=compensation, comp_df=comp.df,
+                        transform=transformation)
     if (!is.null(task)) {
       # task is null when run from RStudio
       actual = get("actual",  envir = .GlobalEnv) + 1

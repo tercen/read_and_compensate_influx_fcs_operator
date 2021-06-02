@@ -5,7 +5,6 @@
   "authors": ["tercen"],
   "urls": ["https://github.com/tercen/read_and_compensate_influx_fcs_operator"],
   "properties": [
-    "properties": [
     {
     "kind": "BooleanProperty",
     "name": "compensation",

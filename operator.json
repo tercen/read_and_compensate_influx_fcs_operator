@@ -6,7 +6,7 @@
   "urls": ["https://github.com/tercen/read_and_compensate_influx_fcs_operator"],
   "properties": [
     {
-    "kind": "BooleanProperty",
+    "kind": "StringProperty",
     "name": "compensation",
     "defaultValue": "true",
     "values": [
@@ -25,7 +25,7 @@
       "biexponential"
     ],
     "description": "Perform transformation."
-    },
+    }
   ]
 }
 

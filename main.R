@@ -42,7 +42,7 @@ sort_to_data = function(filename,
     indexed_fcs = flowFrame(exprs = as.matrix(indexed_flowdata))
     
     # Perform compensation
-    if (comp) {
+    if (comp == "true") {
       if (is.null(comp_df)) {
         indexed_fcs = compensate(indexed_fcs, spillover(flowfile)$SPILL)
       } else {

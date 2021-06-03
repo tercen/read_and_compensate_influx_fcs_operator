@@ -6,13 +6,13 @@ library(flowWorkspace)
 library(fuzzyjoin)
 library(stringr)
 
-sort_to_data = function(filename, 
+sort_to_data = function(path, display_name, 
                         comp=FALSE, comp_df=NULL,
                         transform="none") {
   INCLUDE <- c("Well", "FSC", "SSC", "*", "TIME", "Tray", "Well")
   
   # Read FCS file using flowCore::read.FCS
-  flowfile <- read.FCS(filename,
+  flowfile <- read.FCS(path,
                        transformation=FALSE) 
   
   if (keyword(flowfile, "INDEXSORTPOSITIONS") %in% keyword(flowfile) == TRUE){
@@ -84,7 +84,7 @@ sort_to_data = function(filename,
       mutate_if(is.logical, as.character) %>%
       mutate_if(is.integer, as.double) %>%
       mutate(.ci = rep_len(0, nrow(.))) %>%
-      mutate(filename = rep_len(basename(filename), nrow(.)))
+      mutate(filename = rep_len(basename(display_name), nrow(.)))
     
   } else {
     stop("FCS file is not a BD InFlux file.")
@@ -108,6 +108,7 @@ df <- ctx$cselect()
 
 docId = df$documentId[1]
 doc = ctx$client$fileService$get(docId)
+display_name = doc$name
 filename = tempfile()
 writeBin(ctx$client$fileService$download(docId), filename)
 on.exit(unlink(filename))
@@ -127,6 +128,8 @@ if(length(grep(".zip", doc$name)) > 0) {
     comp.df <- read.csv(csv.names[1], check.names=FALSE)[-1]
   }
   
+  display_name <- f.names
+
 } else {
   f.names <- filename
   comp.df <- NULL
@@ -142,7 +145,7 @@ task = ctx$task
 f.names %>%
   lapply(function(filename){
     # pass CSV compensation matrix or NULL
-    data = sort_to_data(filename, 
+    data = sort_to_data(path=filename, display_name=display_name, 
                         comp=compensation, comp_df=comp.df,
                         transform=transformation)
     if (!is.null(task)) {

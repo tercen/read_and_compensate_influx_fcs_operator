@@ -169,10 +169,11 @@ data %>%
       comp.df <- read.csv(comp, check.names=FALSE)[-1]
       # pass CSV compensation matrix or NULL
       data = sort_to_data(path=fcs, display_name=fcs,
-                          comp="true", comp_df=comp.df)
+                          comp="true", comp_df=comp.df,
+                          transform=transformation)
     } else {
       data = sort_to_data(path=fcs, display_name=fcs ,
-                          comp="true")
+                          comp="true", transform=transformation)
     }
     
     if (!is.null(task)) {

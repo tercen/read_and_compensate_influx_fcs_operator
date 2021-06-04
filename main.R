@@ -6,14 +6,14 @@ library(flowWorkspace)
 library(fuzzyjoin)
 library(stringr)
 
-sort_to_data = function(path, display_name, 
-                        comp=FALSE, comp_df=NULL,
+sort_to_data = function(path, display_name="", 
+                        comp="false", comp_df=NULL,
                         transform="none") {
-  INCLUDE <- c("Well", "FSC", "SSC", "*", "TIME", "Tray", "Well")
+  INCLUDE <- c("Well", "FSC", "SSC", "TIME", "Tray", "Well")
   
   # Read FCS file using flowCore::read.FCS
   flowfile <- read.FCS(path,
-                       transformation=FALSE) 
+                       transformation=TRUE) 
   
   if (keyword(flowfile, "INDEXSORTPOSITIONS") %in% keyword(flowfile) == TRUE){
     
@@ -21,14 +21,19 @@ sort_to_data = function(path, display_name,
     flowdata <- as.data.frame(exprs(flowfile))
     indexed_flowdata <- flowdata[flowdata$'Sort Result Bits' >0,]
     
+    # Filter cols
+    filter_cols = colnames(indexed_flowdata %>% 
+                             select(contains(c("*"))) %>% 
+                             rename_all(~str_replace_all(., "\\*","")))
+
     # Filter out correct rows
     indexed_flowdata = indexed_flowdata %>% 
-      select(contains(INCLUDE)) %>% 
-      rename_all(~str_replace_all(., "\\*",""))
-    
+      select(-contains(c("*"))) %>%
+      select(contains(c(INCLUDE, filter_cols)))
+      
+      #rename_all(~str_replace_all(., "\\*",""))
+  
     # Perform transformation if needed
-    print('transformation isss')
-    print(transform)
     if (transform == "biexponential") {
       trans_f = flowWorkspace::flowjo_biexp()
       trans_flow_data = indexed_flowdata %>% select(-contains(c('Well', 
@@ -48,8 +53,10 @@ sort_to_data = function(path, display_name,
       if (is.null(comp_df)) {
         indexed_fcs = compensate(indexed_fcs, spillover(flowfile)$SPILL)
       } else {
+        #comp_df = t(inv(as.matrix(comp_df)))
         colnames(comp_df) = colnames(spillover(flowfile)$SPILL)
-        indexed_fcs = compensate(indexed_fcs, comp_df)
+        #print(comp_df)
+        indexed_fcs = compensate(indexed_fcs, compensation(as.matrix(comp_df)))
       }
     }
     
@@ -61,7 +68,6 @@ sort_to_data = function(path, display_name,
     wellID <- wellorder[[1]][seq(1, length(wellorder[[1]]), 3)]
     x<-wellorder[[1]][seq(2, length(wellorder[[1]]), 3)]
     y<-wellorder[[1]][seq(3, length(wellorder[[1]]), 3)]
-    
     
     well_df<-data.frame(wellID,x,y)
     well_df[, 2] <- as.numeric(as.character(well_df[, 2]))
@@ -119,47 +125,68 @@ if(length(grep(".zip", doc$name)) > 0) {
   unzip(filename, exdir = tmpdir)
   f.names <- list.files(tmpdir, full.names = TRUE, 
                         pattern="\\.fcs$", ignore.case=TRUE)
-  csv.names <- list.files(tmpdir, full.names = TRUE, 
-                          pattern="\\.csv$", ignore.case=TRUE)
+  comp.names <- list.files(tmpdir, full.names = TRUE, 
+                           pattern="\\.comp$", ignore.case=TRUE)
   
-  if (length(csv.names) == 0) { 
-    comp.df <- NULL
-  } else {
-    comp.df <- read.csv(csv.names[1], check.names=FALSE)[-1]
+  fcs_files = c()
+  comp_files = c()
+  
+  for (f in f.names) {
+    f_name = gsub(pattern = "\\.fcs$", "", basename(f), ignore.case=TRUE)
+    comp_file = "none"
+    
+    for (c in comp.names) {
+      c_name = gsub(pattern = "\\.comp$", "", basename(c), ignore.case=TRUE)
+      if (f_name == c_name) comp_file = c_name
+    }
+    
+    fcs_files = c(fcs_files, f)
+    comp_files = c(comp_files, c)
+    
   }
   
-  display_name <- f.names
+  data <- data.frame(fcs=fcs_files, comp=comp_files)
+  
+  display_name <- fcs_files
 
 } else {
-  f.names <- filename
-  comp.df <- NULL
+  data <- data.frame(fcs=c(filename), comp=c(""))
 }
 
 # check FCS
-if(any(!isFCSfile(f.names))) stop("Not all imported files are FCS files.")
+if(any(!isFCSfile(data$fcs))) stop("Not all imported files are FCS files.")
 
 assign("actual", 0, envir = .GlobalEnv)
 task = ctx$task
 
 #2. convert them to FCS files
-f.names %>%
-  lapply(function(filename){
-    # pass CSV compensation matrix or NULL
-    data = sort_to_data(path=filename, display_name=display_name, 
-                        comp=compensation, comp_df=comp.df,
-                        transform=transformation)
+data %>%
+  apply(1, function(row){
+    fcs = row[1]
+    comp = row[2]
+    
+    if (comp != "none") {
+      comp.df <- read.csv(comp, check.names=FALSE)[-1]
+      # pass CSV compensation matrix or NULL
+      data = sort_to_data(path=fcs, display_name=fcs,
+                          comp="true", comp_df=comp.df)
+    } else {
+      data = sort_to_data(path=fcs, display_name=fcs ,
+                          comp="true")
+    }
+    
     if (!is.null(task)) {
       # task is null when run from RStudio
       actual = get("actual",  envir = .GlobalEnv) + 1
       assign("actual", actual, envir = .GlobalEnv)
       evt = TaskProgressEvent$new()
       evt$taskId = task$id
-      evt$total = length(f.names)
+      evt$total = length(data$fcs)
       evt$actual = actual
-      evt$message = paste0('processing FCS file ' , filename)
+      evt$message = paste0('processing FCS file ' , fcs)
       ctx$client$eventService$sendChannel(task$channelId, evt)
     } else {
-      cat('processing FCS file ' , filename)
+      cat('processing FCS file ' , fcs)
     }
     data
   }) %>%

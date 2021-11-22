@@ -6,9 +6,10 @@ library(flowWorkspace)
 library(fuzzyjoin)
 library(stringr)
 
-sort_to_data = function(path, display_name="", 
-                        comp="false", comp_df=NULL,
-                        transform="none") {
+sort_to_data = function(path, display_name = "", 
+                        compensation = FALSE, comp_df = NULL,
+                        transformation = "none") {
+
   INCLUDE <- c("Well", "FSC", "SSC", "TIME", "Tray", "Well")
   
   # Read FCS file using flowCore::read.FCS
@@ -34,7 +35,7 @@ sort_to_data = function(path, display_name="",
       #rename_all(~str_replace_all(., "\\*",""))
   
     # Perform transformation if needed
-    if (transform == "biexponential") {
+    if (transformation == "biexponential") {
       trans_f = flowWorkspace::flowjo_biexp()
       trans_flow_data = indexed_flowdata %>% select(-contains(c('Well', 
                                                                 'TIME', 
@@ -49,7 +50,7 @@ sort_to_data = function(path, display_name="",
     indexed_fcs = flowFrame(exprs = as.matrix(indexed_flowdata))
     
     # Perform compensation
-    if (comp == "true") {
+    if (compensation) {
       if (is.null(comp_df)) {
         indexed_fcs = compensate(indexed_fcs, spillover(flowfile)$SPILL)
       } else {
@@ -103,11 +104,11 @@ ctx = tercenCtx()
 if (!any(ctx$cnames == "documentId")) stop("Column factor documentId is required") 
 
 # Setup operator properties
-compensation <- "none"
-if(!is.null(ctx$op.value("compensation"))) compensation <- ctx$op.value("compensation")
+compensation_param <- "none"
+if(!is.null(ctx$op.value("compensation"))) compensation_param <- ctx$op.value("compensation")
 
-transformation <- "biexponential"
-if(!is.null(ctx$op.value("transformation"))) transformation <- ctx$op.value("transformation")
+transformation_param <- "biexponential"
+if(!is.null(ctx$op.value("transformation"))) transformation_param <- ctx$op.value("transformation")
 
 #1. extract files
 df <- ctx$cselect()
@@ -165,15 +166,15 @@ data %>%
     fcs = row[1]
     comp = row[2]
     
-    if (comp != "none") {
+    if (compensation_param != "none") {
       comp.df <- read.csv(comp, check.names=FALSE)[-1]
       # pass CSV compensation matrix or NULL
-      data = sort_to_data(path=fcs, display_name=fcs,
-                          comp="true", comp_df=comp.df,
-                          transform=transformation)
+      data = sort_to_data(path = fcs, display_name = fcs,
+                          compensation = TRUE, comp_df = comp.df,
+                          transformation = transformation_param)
     } else {
-      data = sort_to_data(path=fcs, display_name=fcs ,
-                          comp="true", transform=transformation)
+      data = sort_to_data(path = fcs, display_name = fcs ,
+                          compensation = FALSE, transform = transformation_param)
     }
     
     if (!is.null(task)) {

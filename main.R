@@ -125,9 +125,9 @@ if(length(grep(".zip", doc$name)) > 0) {
   tmpdir <- tempfile()
   unzip(filename, exdir = tmpdir)
   f.names <- list.files(tmpdir, full.names = TRUE, 
-                        pattern="\\.fcs$", ignore.case=TRUE)
+                        pattern="\\.fcs$", ignore.case=TRUE, recursive = TRUE)
   comp.names <- list.files(tmpdir, full.names = TRUE, 
-                           pattern="\\.comp$", ignore.case=TRUE)
+                           pattern="\\.comp$", ignore.case=TRUE, recursive = TRUE)
   
   fcs_files = c()
   comp_files = c()
